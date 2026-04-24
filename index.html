@@ -373,10 +373,9 @@ body{
 
 <div id="toast"></div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, set, push, remove, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
 // ── FIREBASE CONFIG ──
 const firebaseConfig = {
   apiKey: "AIzaSyBoRXqGPxNJMvXdHIBx7SuWivAr94sqMa8",
@@ -388,8 +387,13 @@ const firebaseConfig = {
   appId: "1:260528090852:web:29eec9f25f65143e2406f1"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const ref = (path) => db.ref(path);
+const onValue = (r, cb) => r.on('value', snap => cb(snap));
+const set = (r, val) => r.set(val);
+const push = (r) => r.push();
+const remove = (r) => r.remove();
 
 // ── DATA ──
 const EMOJIS = ['😎','🔥','👑','💀','🐐','🌟','⚡','🦁','🐺','🎯','💎','🧠','👻','🚀','🐉','🦊','🎭','🤖'];
@@ -412,12 +416,12 @@ let selColor = COLORS[0];
 let dbReady = false;
 
 // ── FIREBASE SYNC ──
-onValue(ref(db,'players'), snap => {
+db.ref('players').on('value', snap => {
   const data = snap.val();
   players = data ? Object.entries(data).map(([k,v])=>({...v,_key:k})) : [];
   if(dbReady) render();
 });
-onValue(ref(db,'history'), snap => {
+db.ref('history').on('value', snap => {
   const data = snap.val();
   history = data ? Object.entries(data).map(([k,v])=>({...v,_key:k}))
     .sort((a,b)=>b.ts-a.ts).slice(0,300) : [];
@@ -427,17 +431,18 @@ onValue(ref(db,'history'), snap => {
 
 function savePlayer(p){
   const {_key,...data} = p;
-  if(_key) set(ref(db,'players/'+_key), data);
-  else {
-    const nr = push(ref(db,'players'));
+  if(_key) {
+    db.ref('players/'+_key).set(data);
+  } else {
+    const nr = db.ref('players').push();
     p._key = nr.key;
-    set(nr, data);
+    nr.set(data);
   }
 }
 function saveHistoryEntry(entry){
-  push(ref(db,'history'), entry);
+  db.ref('history').push().set(entry);
 }
-function removePlayer(key){ remove(ref(db,'players/'+key)); }
+function removePlayer(key){ db.ref('players/'+key).remove(); }
 
 function getTitle(score){
   let t = TITLES[0];
@@ -640,13 +645,13 @@ function deletePlayer(id){
 
 function confirmReset(){
   if(!confirm('Usunąć WSZYSTKIE dane? Tego nie można cofnąć.')) return;
-  set(ref(db,'players'), null);
-  set(ref(db,'history'), null);
+  db.ref('players').set(null);
+  db.ref('history').set(null);
   toast('Reset gotowy');
 }
 
 function clearHistory(){
-  set(ref(db,'history'), null);
+  db.ref('history').set(null);
   toast('Historia wyczyszczona');
 }
 
