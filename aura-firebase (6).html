@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURA — Licznik Punktów</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase compat SDK (działa bezpośrednio w przeglądarce) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+:root{
+  --bg:#080810;--bg2:#0e0e1a;--bg3:#13131f;
+  --card:#141420;--card2:#1a1a2e;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --text:#f0eef8;--muted:#6b6880;
+  --accent:#a78bfa;--accent2:#7c3aed;
+  --gold:#f59e0b;--silver:#94a3b8;--bronze:#cd7f32;
+  --green:#10b981;--red:#f43f5e;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* LOADER */
+#loader{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;transition:opacity .6s}
+#loader.hide{opacity:0;pointer-events:none}
+.loader-title{font-family:'Bebas Neue',sans-serif;font-size:80px;letter-spacing:8px;background:linear-gradient(135deg,#e0d7ff,#a78bfa,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.loader-sub{font-size:12px;letter-spacing:4px;color:var(--muted);text-transform:uppercase}
+.loader-bar{width:140px;height:2px;background:var(--card2);border-radius:2px;overflow:hidden;margin-top:.5rem}
+.loader-fill{height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;transition:width 1.5s ease}
+#loaderStatus{font-size:11px;color:var(--muted);margin-top:.5rem;min-height:16px}
+
+/* STATUS BAR */
+#statusBar{position:fixed;top:0;left:0;right:0;z-index:100;padding:6px 16px;font-size:12px;text-align:center;display:none;transition:all .3s}
+#statusBar.online{background:rgba(16,185,129,.15);color:#10b981;border-bottom:1px solid rgba(16,185,129,.2)}
+#statusBar.offline{background:rgba(244,63,94,.15);color:#f43f5e;border-bottom:1px solid rgba(244,63,94,.2)}
+
+/* BG CANVAS */
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.3}
+
+/* LAYOUT */
+.wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:5rem 1.25rem 4rem}
+
+/* HEADER */
+.header{text-align:center;padding:2rem 0 2rem}
+.header-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(60px,12vw,110px);letter-spacing:6px;line-height:.9;background:linear-gradient(135deg,#e0d7ff 0%,#a78bfa 40%,#7c3aed 70%,#4f1fd4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:pulse 4s ease-in-out infinite}
+@keyframes pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.2)}}
+.header-sub{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--muted);margin-top:.5rem}
+
+/* TABS */
+.tabs{display:flex;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:5px;margin-bottom:2rem}
+.tab{flex:1;padding:9px 4px;text-align:center;border-radius:10px;font-size:12px;font-weight:500;letter-spacing:.3px;cursor:pointer;transition:all .2s;color:var(--muted);border:none;background:transparent;font-family:inherit}
+.tab.active{background:var(--card2);color:var(--text);box-shadow:0 0 20px rgba(124,58,237,.2)}
+.tab:hover:not(.active){color:var(--text)}
+.panel{display:none}.panel.active{display:block}
+
+/* RANKING HEADER */
+.row-between{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem}
+.label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--muted)}
+.step-row{display:flex;align-items:center;gap:8px}
+.step-in{width:52px;height:28px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none}
+.step-in:focus{border-color:var(--accent)}
+
+/* PODIUM */
+.podium{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:2rem;align-items:end}
+.pod{border-radius:16px;padding:1.25rem 1rem;text-align:center;border:1px solid var(--border);background:var(--card);transition:transform .2s}
+.pod:hover{transform:translateY(-3px)}
+.pod-1{border-color:rgba(245,158,11,.3);background:linear-gradient(160deg,#1a1620,#1c1408)}
+.pod-2{border-color:rgba(148,163,184,.15)}
+.pod-3{border-color:rgba(205,127,50,.15)}
+.pod-medal{font-size:22px}
+.pod-av{width:50px;height:50px;border-radius:50%;margin:8px auto;display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid var(--border2)}
+.pod-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pod-score{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--accent)}
+.pod-title{font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+.pod-empty{opacity:.2}
+
+/* LEADERBOARD */
+.glow{height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);margin:1.5rem 0;opacity:.3}
+.lb{display:flex;flex-direction:column;gap:8px}
+.lb-row{display:grid;grid-template-columns:36px 44px 1fr auto auto;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:.7rem 1rem;transition:all .2s}
+.lb-row:hover{border-color:var(--border2);background:var(--card2);transform:translateX(4px)}
+.lb-rank{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--muted);text-align:center}
+.lb-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:1.5px solid var(--border2)}
+.lb-name{font-weight:500;font-size:14px}
+.lb-ti{font-size:11px;color:var(--muted)}
+.lb-score{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--accent)}
+.lb-ctrl{display:flex;gap:6px;align-items:center}
+.btn-pt{width:30px;height:30px;border-radius:50%;border:1.5px solid;background:transparent;cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-weight:600;line-height:1}
+.btn-plus{color:var(--green);border-color:rgba(16,185,129,.4)}
+.btn-plus:hover{background:rgba(16,185,129,.15);transform:scale(1.1)}
+.btn-minus{color:var(--red);border-color:rgba(244,63,94,.4)}
+.btn-minus:hover{background:rgba(244,63,94,.15);transform:scale(1.1)}
+
+/* ADD */
+.add-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem}
+.add-row{display:flex;gap:10px;margin-bottom:1rem}
+.field{flex:1;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.field:focus{border-color:var(--accent)}
+.field::placeholder{color:var(--muted)}
+.btn-main{padding:10px 20px;background:var(--accent2);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit}
+.btn-main:hover{background:#6d28d9;transform:translateY(-1px)}
+.btn-main:active{transform:scale(.97)}
+.pick-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+.emoji-pick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem}
+.emoji-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg3);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.emoji-btn:hover,.emoji-btn.sel{border-color:var(--accent);background:rgba(167,139,250,.15)}
+.color-pick{display:flex;gap:8px;flex-wrap:wrap}
+.color-dot{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;transition:all .15s}
+.color-dot.sel{border-color:#fff;transform:scale(1.15)}
+
+/* PROFILES */
+.profiles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.prof-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem 1rem;text-align:center;transition:all .2s;position:relative;overflow:hidden}
+.prof-card:hover{border-color:var(--border2);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.prof-av{width:62px;height:62px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:26px;border:2px solid var(--border2);position:relative}
+.prof-crown{position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:18px}
+.prof-name{font-size:15px;font-weight:600;margin-bottom:4px}
+.prof-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:600;margin-bottom:10px}
+.prof-score{font-family:'Bebas Neue',sans-serif;font-size:46px;line-height:1}
+.prof-ptslbl{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+.prof-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.stat-box{background:var(--bg3);border-radius:8px;padding:8px;text-align:center}
+.stat-val{font-size:16px;font-weight:600}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.btn-del{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;opacity:0;transition:all .15s}
+.prof-card:hover .btn-del{opacity:1}
+.btn-del:hover{background:rgba(244,63,94,.2);color:var(--red);border-color:rgba(244,63,94,.4)}
+.top-moments{margin-top:10px;text-align:left}
+.top-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;text-align:center}
+.moment-row{display:flex;align-items:center;gap:8px;background:var(--bg3);border-radius:8px;padding:5px 8px;margin-bottom:4px}
+.moment-delta{font-family:'Bebas Neue',sans-serif;font-size:17px;min-width:34px;color:var(--green)}
+.moment-note{font-size:11px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic}
+
+/* HISTORY */
+.hist-list{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow-y:auto;padding-right:4px}
+.hist-list::-webkit-scrollbar{width:4px}
+.hist-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.hist-item{display:flex;align-items:flex-start;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.65rem 1rem}
+.hist-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.hist-body{flex:1;min-width:0}
+.hist-text{font-size:13px;color:var(--muted)}
+.hist-text strong{color:var(--text);font-weight:500}
+.note-chip{display:inline-flex;align-items:center;gap:3px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.2);border-radius:5px;padding:2px 6px;font-size:11px;color:var(--accent);margin-top:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
+.hist-delta{font-family:'Bebas Neue',sans-serif;font-size:20px}
+.hist-time{font-size:10px;color:var(--muted)}
+.pos{color:var(--green)}.neg{color:var(--red)}
+
+/* TOAST */
+#toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card2);border:1px solid var(--border2);border-radius:12px;padding:.75rem 1.5rem;font-size:14px;font-weight:500;transition:transform .35s cubic-bezier(.34,1.56,.64,1);z-index:9998;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* SCORE POPUP */
+.score-pop{position:fixed;font-family:'Bebas Neue',sans-serif;font-size:38px;pointer-events:none;z-index:9997;animation:popFly 1.2s ease-out forwards}
+@keyframes popFly{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-90px) scale(1.5)}}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal{background:var(--card2);border:1px solid var(--border2);border-radius:18px;padding:1.5rem;width:100%;max-width:400px;transform:translateY(20px) scale(.97);transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+.modal-bg.open .modal{transform:translateY(0) scale(1)}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:.5rem}
+.modal-who{font-size:13px;color:var(--muted);margin-bottom:.75rem}
+.modal-note{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;padding:10px 14px;resize:none;outline:none;transition:border-color .15s;min-height:70px}
+.modal-note:focus{border-color:var(--accent)}
+.modal-note::placeholder{color:var(--muted)}
+.modal-btns{display:flex;gap:8px;margin-top:1rem;justify-content:flex-end}
+.btn-cancel{padding:8px 16px;background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px;transition:all .15s}
+.btn-cancel:hover{color:var(--text)}
+.btn-confirm{padding:8px 18px;background:var(--accent2);border:none;border-radius:8px;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;transition:all .15s}
+.btn-confirm:hover{background:#6d28d9}
+
+/* MISC */
+.empty{text-align:center;padding:3rem;color:var(--muted);font-size:14px}
+.danger-btn{padding:6px 14px;background:transparent;border:1px solid rgba(244,63,94,.3);border-radius:8px;color:var(--red);font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s}
+.danger-btn:hover{background:rgba(244,63,94,.12)}
+.reset-row{display:flex;justify-content:flex-end;margin-top:1.5rem}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="loader-title">AURA</div>
+  <div class="loader-sub">System punktów paczki</div>
+  <div class="loader-bar"><div class="loader-fill" id="loaderFill"></div></div>
+  <div id="loaderStatus">Łączenie z bazą danych...</div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusBar"></div>
+
+<!-- BG -->
+<canvas id="bgCanvas"></canvas>
+
+<div class="wrap">
+  <div class="header">
+    <div class="header-title">AURA</div>
+    <div class="header-sub">System punktów paczki</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('ranking')">🏆 Ranking</button>
+    <button class="tab" onclick="switchTab('profiles')">👤 Profile</button>
+    <button class="tab" onclick="switchTab('add')">➕ Dodaj</button>
+    <button class="tab" onclick="switchTab('history')">📜 Historia</button>
+  </div>
+
+  <!-- RANKING -->
+  <div class="panel active" id="tab-ranking">
+    <div class="row-between">
+      <span class="label">Aktualne wyniki</span>
+      <div class="step-row">
+        <span class="label">krok:</span>
+        <input class="step-in" type="number" id="globalStep" value="1" min="1" max="9999">
+      </div>
+    </div>
+    <div class="podium" id="podium"></div>
+    <div class="glow"></div>
+    <div class="lb" id="leaderboard"></div>
+    <div class="empty" id="rankEmpty" style="display:none">Brak graczy — dodaj znajomych w zakładce ➕</div>
+  </div>
+
+  <!-- PROFILES -->
+  <div class="panel" id="tab-profiles">
+    <div class="profiles-grid" id="profilesGrid"></div>
+    <div class="empty" id="profEmpty" style="display:none">Brak profili. Dodaj znajomych!</div>
+  </div>
+
+  <!-- ADD -->
+  <div class="panel" id="tab-add">
+    <div class="add-card">
+      <div class="label" style="margin-bottom:1rem">Nowy gracz</div>
+      <div class="add-row">
+        <input class="field" id="addName" type="text" placeholder="Imię / ksywka..." maxlength="20">
+        <button class="btn-main" onclick="addPlayer()">Dodaj</button>
+      </div>
+      <div class="pick-label">Emoji awatara</div>
+      <div class="emoji-pick" id="emojiPick"></div>
+      <div class="pick-label" style="margin-top:.75rem">Kolor</div>
+      <div class="color-pick" id="colorPick"></div>
+    </div>
+    <div class="reset-row">
+      <button class="danger-btn" onclick="confirmReset()">🗑 Resetuj wszystkie dane</button>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="panel" id="tab-history">
+    <div class="row-between">
+      <span class="label">Historia wydarzeń</span>
+      <button class="danger-btn" onclick="clearHistory()">Wyczyść</button>
+    </div>
+    <div class="hist-list" id="histList"></div>
+    <div class="empty" id="histEmpty" style="display:none">Brak historii. Zacznij dodawać punkty!</div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modalBg" onclick="bgClick(event)">
+  <div class="modal">
+    <div class="modal-title">Dodaj notatkę</div>
+    <div class="modal-who" id="modalWho"></div>
+    <textarea class="modal-note" id="modalNote" placeholder="Za co ta aura? (opcjonalne)..." maxlength="120" rows="3"></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="cancelModal()">Anuluj</button>
+      <button class="btn-confirm" onclick="confirmModal()">Zatwierdź ↗</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+//  FIREBASE INIT
+// ═══════════════════════════════════════════
+firebase.initializeApp({
+  apiKey: "AIzaSyBoRXqGPxNJMvXdHIBx7SuWivAr94sqMa8",
+  authDomain: "licznik-aury-f74a6.firebaseapp.com",
+  databaseURL: "https://licznik-aury-12eba-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "licznik-aury-f74a6",
+  storageBucket: "licznik-aury-f74a6.firebasestorage.app",
+  messagingSenderId: "260528090852",
+  appId: "1:260528090852:web:29eec9f25f65143e2406f1"
+});
+const db = firebase.database();
+
+// ═══════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════
+const EMOJIS = ['😎','🔥','👑','💀','🐐','🌟','⚡','🦁','🐺','🎯','💎','🧠','👻','🚀','🐉','🦊','🎭','🤖'];
+const COLORS = ['#7c3aed','#0891b2','#059669','#dc2626','#d97706','#db2777','#4f46e5','#0284c7','#16a34a','#ea580c'];
+const TITLES = [
+  {min:-Infinity,label:'Widmo',color:'#6b7280'},
+  {min:0,label:'Zwykły',color:'#9ca3af'},
+  {min:50,label:'Obiecujący',color:'#60a5fa'},
+  {min:150,label:'Zaufany',color:'#34d399'},
+  {min:300,label:'Szanowany',color:'#a78bfa'},
+  {min:500,label:'Elita',color:'#f59e0b'},
+  {min:1000,label:'Legenda',color:'#f43f5e'},
+  {min:2000,label:'Bóg Aury',color:'#e879f9'},
+];
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+var players = [];
+var auraHistory = [];
+var selEmoji = EMOJIS[0];
+var selColor = COLORS[0];
+var pendingAction = null;
+var appReady = false;
+
+// ═══════════════════════════════════════════
+//  FIREBASE LISTENERS
+// ═══════════════════════════════════════════
+db.ref('players').on('value', function(snap) {
+  var val = snap.val();
+  players = val
+    ? Object.entries(val).map(function(e) { return Object.assign({}, e[1], {_key: e[0]}); })
+    : [];
+  if (appReady) { renderRanking(); renderProfiles(); }
+});
+
+db.ref('history').on('value', function(snap) {
+  var val = snap.val();
+  auraHistory = val
+    ? Object.entries(val)
+        .map(function(e) { return Object.assign({}, e[1], {_key: e[0]}); })
+        .sort(function(a,b) { return b.ts - a.ts; })
+        .slice(0, 300)
+    : [];
+  if (appReady) renderHistory();
+  if (!appReady) {
+    appReady = true;
+    hideLoader();
+    renderAll();
+  }
+});
+
+db.ref('.info/connected').on('value', function(snap) {
+  var bar = document.getElementById('statusBar');
+  if (snap.val()) {
+    bar.textContent = '● Połączono z bazą danych';
+    bar.className = 'online';
+    bar.style.display = 'block';
+    setTimeout(function(){ bar.style.display = 'none'; }, 2500);
+  } else {
+    bar.textContent = '● Brak połączenia — dane mogą być nieaktualne';
+    bar.className = 'offline';
+    bar.style.display = 'block';
+  }
+});
+
+// ═══════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════
+function getTitle(score) {
+  var t = TITLES[0];
+  for (var i = 0; i < TITLES.length; i++) if (score >= TITLES[i].min) t = TITLES[i];
+  return t;
+}
+
+function initials(name) {
+  return name.trim().split(/\s+/).map(function(w){ return w[0].toUpperCase(); }).slice(0,2).join('');
+}
+
+function timeAgo(ts) {
+  var d = (Date.now() - ts) / 1000;
+  if (d < 60)    return 'przed chwilą';
+  if (d < 3600)  return Math.floor(d/60) + 'min temu';
+  if (d < 86400) return Math.floor(d/3600) + 'h temu';
+  return Math.floor(d/86400) + 'd temu';
+}
+
+function sorted() {
+  return players.slice().sort(function(a,b){ return b.score - a.score; });
+}
+
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════
+//  FIREBASE WRITE
+// ═══════════════════════════════════════════
+function savePlayer(p) {
+  var key = p._key;
+  var data = Object.assign({}, p);
+  delete data._key;
+  if (key) {
+    db.ref('players/' + key).set(data);
+  } else {
+    var newRef = db.ref('players').push();
+    p._key = newRef.key;
+    newRef.set(data);
+  }
+}
+
+function pushHistory(entry) {
+  db.ref('history').push().set(entry);
+}
+
+function removePlayerDB(key) {
+  db.ref('players/' + key).remove();
+}
+
+// ═══════════════════════════════════════════
+//  SCORE CHANGE + MODAL
+// ═══════════════════════════════════════════
+function changeScore(id, dir) {
+  var step = parseInt(document.getElementById('globalStep').value) || 1;
+  var p = null;
+  for (var i = 0; i < players.length; i++) if (String(players[i].id) === String(id)) { p = players[i]; break; }
+  if (!p) return;
+  var delta = dir * step;
+  pendingAction = {id: id, delta: delta};
+  document.getElementById('modalWho').textContent =
+    (p.emoji || '') + ' ' + p.name + '  ·  ' + (delta > 0 ? '+' : '') + delta + ' aury';
+  document.getElementById('modalNote').value = '';
+  document.getElementById('modalBg').classList.add('open');
+  setTimeout(function(){ document.getElementById('modalNote').focus(); }, 200);
+}
+
+function confirmModal() {
+  if (!pendingAction) return;
+  var note = document.getElementById('modalNote').value.trim();
+  applyScore(pendingAction.id, pendingAction.delta, note);
+  closeModal();
+}
+
+function cancelModal() { closeModal(); }
+
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('open');
+  pendingAction = null;
+}
+
+function bgClick(e) {
+  if (e.target === document.getElementById('modalBg')) closeModal();
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
+
+document.getElementById('modalNote').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmModal(); }
+});
+
+function applyScore(id, delta, note) {
+  var p = null;
+  for (var i = 0; i < players.length; i++) if (String(players[i].id) === String(id)) { p = players[i]; break; }
+  if (!p) return;
+  p.score = (p.score || 0) + delta;
+  p.totalAdded = (p.totalAdded || 0) + (delta > 0 ? delta : 0);
+  p.totalLost  = (p.totalLost  || 0) + (delta < 0 ? Math.abs(delta) : 0);
+  p.changes    = (p.changes    || 0) + 1;
+  savePlayer(p);
+  var entry = {id: String(id), name: p.name, delta: delta, ts: Date.now()};
+  if (note) entry.note = note;
+  pushHistory(entry);
+  spawnPopup(delta);
+  toast(p.name + ': ' + (delta > 0 ? '+' : '') + delta + ' aury' + (note ? ' — ' + note : ''));
+}
+
+function spawnPopup(delta) {
+  var el = document.createElement('div');
+  el.className = 'score-pop';
+  el.style.left = (Math.random() * 60 + 20) + '%';
+  el.style.top  = (Math.random() * 30 + 30) + '%';
+  el.style.color = delta > 0 ? '#10b981' : '#f43f5e';
+  el.textContent = (delta > 0 ? '+' : '') + delta;
+  document.body.appendChild(el);
+  setTimeout(function(){ el.remove(); }, 1300);
+}
+
+// ═══════════════════════════════════════════
+//  ADD / DELETE PLAYER
+// ═══════════════════════════════════════════
+function addPlayer() {
+  var name = document.getElementById('addName').value.trim();
+  if (!name) return toast('Wpisz imię!');
+  for (var i = 0; i < players.length; i++) {
+    if (players[i].name.toLowerCase() === name.toLowerCase()) return toast('Taki gracz już istnieje!');
+  }
+  var p = {
+    id: String(Date.now()), name: name,
+    emoji: selEmoji, color: selColor,
+    score: 0, totalAdded: 0, totalLost: 0, changes: 0
+  };
+  savePlayer(p);
+  document.getElementById('addName').value = '';
+  toast(name + ' dołączył do paczki! 🎉');
+  switchTab('ranking');
+}
+
+function deletePlayer(id) {
+  var p = null;
+  for (var i = 0; i < players.length; i++) if (String(players[i].id) === String(id)) { p = players[i]; break; }
+  if (!p) return;
+  if (!confirm('Usunąć ' + p.name + '?')) return;
+  removePlayerDB(p._key);
+  toast(p.name + ' usunięty');
+}
+
+function confirmReset() {
+  if (!confirm('Usunąć WSZYSTKIE dane? Tego nie można cofnąć.')) return;
+  db.ref('players').set(null);
+  db.ref('history').set(null);
+  toast('Reset gotowy');
+}
+
+function clearHistory() {
+  if (!confirm('Wyczyścić historię?')) return;
+  db.ref('history').set(null);
+  toast('Historia wyczyszczona');
+}
+
+// ═══════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════
+function renderAll() { renderRanking(); renderProfiles(); renderHistory(); }
+
+function renderRanking() {
+  var list = sorted();
+  var podiumEl = document.getElementById('podium');
+  var lbEl = document.getElementById('leaderboard');
+  var empty = document.getElementById('rankEmpty');
+
+  if (!list.length) {
+    podiumEl.innerHTML = '';
+    lbEl.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  var slots = [list[1], list[0], list[2]];
+  var medals = ['🥈','🥇','🥉'];
+  var ranks  = [2, 1, 3];
+  podiumEl.innerHTML = slots.map(function(p, i) {
+    if (!p) return '<div class="pod pod-' + ranks[i] + ' pod-empty"><div class="pod-medal">' + medals[i] + '</div><div class="pod-score">—</div></div>';
+    var t = getTitle(p.score);
+    return '<div class="pod pod-' + ranks[i] + '">'
+      + '<div class="pod-medal">' + medals[i] + '</div>'
+      + '<div class="pod-av" style="background:' + p.color + '22;border-color:' + p.color + '55">' + (p.emoji || initials(p.name)) + '</div>'
+      + '<div class="pod-name">' + esc(p.name) + '</div>'
+      + '<div class="pod-score">' + p.score + '</div>'
+      + '<div class="pod-title" style="color:' + t.color + '">' + t.label + '</div>'
+      + '</div>';
+  }).join('');
+
+  lbEl.innerHTML = list.map(function(p, i) {
+    var t = getTitle(p.score);
+    return '<div class="lb-row">'
+      + '<div class="lb-rank">' + (i+1) + '</div>'
+      + '<div class="lb-av" style="background:' + p.color + '22;border-color:' + p.color + '55">' + (p.emoji || initials(p.name)) + '</div>'
+      + '<div><div class="lb-name">' + esc(p.name) + '</div><div class="lb-ti" style="color:' + t.color + '">' + t.label + '</div></div>'
+      + '<div class="lb-score">' + p.score + '</div>'
+      + '<div class="lb-ctrl">'
+      + '<button class="btn-pt btn-minus" onclick="changeScore(' + p.id + ',-1)">−</button>'
+      + '<button class="btn-pt btn-plus" onclick="changeScore(' + p.id + ',1)">+</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+function topMomentsHTML(pid) {
+  var moments = auraHistory
+    .filter(function(h){ return String(h.id) === String(pid) && h.note && h.delta > 0; })
+    .sort(function(a,b){ return b.delta - a.delta; })
+    .slice(0, 3);
+  if (!moments.length) return '';
+  return '<div class="top-moments"><div class="top-lbl">🏅 Top momenty</div>'
+    + moments.map(function(m){
+        return '<div class="moment-row"><div class="moment-delta">+' + m.delta + '</div><div class="moment-note">' + esc(m.note) + '</div></div>';
+      }).join('')
+    + '</div>';
+}
+
+function renderProfiles() {
+  var list = sorted();
+  var grid = document.getElementById('profilesGrid');
+  var empty = document.getElementById('profEmpty');
+  if (!list.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  grid.innerHTML = list.map(function(p, i) {
+    var t = getTitle(p.score);
+    var scoreColor = p.score < 0 ? '#f43f5e' : p.score === 0 ? '#6b7280' : '#a78bfa';
+    return '<div class="prof-card">'
+      + '<button class="btn-del" onclick="deletePlayer(' + p.id + ')">✕</button>'
+      + '<div class="prof-av" style="background:' + p.color + '22;border-color:' + p.color + '44">'
+      + (i===0 ? '<div class="prof-crown">👑</div>' : '')
+      + '<span style="font-size:26px">' + (p.emoji || initials(p.name)) + '</span></div>'
+      + '<div class="prof-name">' + esc(p.name) + '</div>'
+      + '<div class="prof-badge" style="color:' + t.color + ';border:1px solid ' + t.color + '44;background:' + t.color + '18">' + t.label + '</div>'
+      + '<div class="prof-score" style="color:' + scoreColor + '">' + p.score + '</div>'
+      + '<div class="prof-ptslbl">punktów aury</div>'
+      + '<div class="prof-stats">'
+      + '<div class="stat-box"><div class="stat-val" style="color:#10b981">+' + (p.totalAdded||0) + '</div><div class="stat-lbl">zdobyte</div></div>'
+      + '<div class="stat-box"><div class="stat-val" style="color:#f43f5e">-' + (p.totalLost||0) + '</div><div class="stat-lbl">stracone</div></div>'
+      + '<div class="stat-box"><div class="stat-val">' + (p.changes||0) + '</div><div class="stat-lbl">zmian</div></div>'
+      + '<div class="stat-box"><div class="stat-val">' + (i+1) + '</div><div class="stat-lbl">miejsce</div></div>'
+      + '</div>'
+      + topMomentsHTML(p.id)
+      + '</div>';
+  }).join('');
+}
+
+function renderHistory() {
+  var listEl = document.getElementById('histList');
+  var empty  = document.getElementById('histEmpty');
+  if (!auraHistory.length) { listEl.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  listEl.innerHTML = '';
+  listEl.innerHTML = auraHistory.map(function(h) {
+    var pos = h.delta > 0;
+    return '<div class="hist-item">'
+      + '<div class="hist-dot" style="background:' + (pos?'#10b981':'#f43f5e') + '"></div>'
+      + '<div class="hist-body">'
+      + '<div class="hist-text"><strong>' + esc(h.name) + '</strong> ' + (pos?'zyskał':'stracił') + ' aurę</div>'
+      + (h.note ? '<div class="note-chip">💬 ' + esc(h.note) + '</div>' : '')
+      + '</div>'
+      + '<div class="hist-right">'
+      + '<div class="hist-delta ' + (pos?'pos':'neg') + '">' + (pos?'+':'') + h.delta + '</div>'
+      + '<div class="hist-time">' + timeAgo(h.ts) + '</div>'
+      + '</div></div>';
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════
+var TAB_NAMES = ['ranking','profiles','add','history'];
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t,i){
+    t.classList.toggle('active', TAB_NAMES[i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'ranking')  renderRanking();
+  if (name === 'profiles') renderProfiles();
+  if (name === 'history')  renderHistory();
+}
+
+// ═══════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════
+var toastTimer;
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2500);
+}
+
+// ═══════════════════════════════════════════
+//  EMOJI & COLOR PICKERS
+// ═══════════════════════════════════════════
+function initPickers() {
+  document.getElementById('emojiPick').innerHTML =
+    EMOJIS.map(function(e){ return '<button class="emoji-btn ' + (e===selEmoji?'sel':'') + '" onclick="pickEmoji(\'' + e + '\')">' + e + '</button>'; }).join('');
+  document.getElementById('colorPick').innerHTML =
+    COLORS.map(function(c){ return '<div class="color-dot ' + (c===selColor?'sel':'') + '" style="background:' + c + '" onclick="pickColor(\'' + c + '\')"></div>'; }).join('');
+}
+function pickEmoji(e) { selEmoji = e; initPickers(); }
+function pickColor(c) { selColor = c; initPickers(); }
+
+document.getElementById('addName').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') addPlayer();
+});
+
+// ═══════════════════════════════════════════
+//  LOADER
+// ═══════════════════════════════════════════
+function hideLoader() {
+  document.getElementById('loaderFill').style.width = '100%';
+  document.getElementById('loaderStatus').textContent = 'Gotowe! ✓';
+  setTimeout(function() {
+    var l = document.getElementById('loader');
+    l.classList.add('hide');
+    setTimeout(function(){ l.style.display = 'none'; }, 700);
+  }, 500);
+}
+
+setTimeout(function() {
+  if (!appReady) {
+    appReady = true;
+    hideLoader();
+    renderAll();
+    toast('⚠️ Sprawdź połączenie z internetem');
+  }
+}, 8000);
+
+setTimeout(function(){ document.getElementById('loaderFill').style.width = '60%'; }, 100);
+
+// ═══════════════════════════════════════════
+//  BG CANVAS PARTICLES
+// ═══════════════════════════════════════════
+(function() {
+  var canvas = document.getElementById('bgCanvas');
+  var ctx = canvas.getContext('2d');
+  var W, H, pts = [];
+  function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+  function init() {
+    resize(); pts = [];
+    for (var i = 0; i < 70; i++) pts.push({
+      x: Math.random()*W, y: Math.random()*H,
+      vx: (Math.random()-.5)*.4, vy: (Math.random()-.5)*.4,
+      r: Math.random()*2+.5, hue: 260+Math.random()*40
+    });
+  }
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i];
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = 'hsla(' + p.hue + ',80%,70%,.7)';
+      ctx.fill();
+      for (var j = i+1; j < pts.length; j++) {
+        var dx = p.x-pts[j].x, dy = p.y-pts[j].y;
+        var d = Math.sqrt(dx*dx+dy*dy);
+        if (d < 120) {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(pts[j].x, pts[j].y);
+          ctx.strokeStyle = 'hsla(270,70%,70%,' + (.15*(1-d/120)) + ')';
+          ctx.lineWidth = .5; ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize', resize);
+  init(); draw();
+})();
+
+initPickers();
+</script>
+</body>
+</html>
