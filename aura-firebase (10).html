@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURA</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+:root{
+  --bg:#080810;--bg2:#0e0e1a;--bg3:#13131f;
+  --card:#141420;--card2:#1a1a2e;
+  --b1:rgba(255,255,255,.07);--b2:rgba(255,255,255,.13);
+  --tx:#f0eef8;--mu:#6b6880;
+  --ac:#a78bfa;--ac2:#7c3aed;
+  --gn:#10b981;--rd:#f43f5e;--gd:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;overflow-x:hidden}
+
+/* LOADER */
+#loader{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;transition:opacity .5s}
+#loader.gone{opacity:0;pointer-events:none}
+.ltitle{font-family:'Bebas Neue',sans-serif;font-size:80px;letter-spacing:8px;background:linear-gradient(135deg,#e0d7ff,#a78bfa,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.lsub{font-size:12px;letter-spacing:4px;color:var(--mu);text-transform:uppercase}
+.lbar{width:140px;height:2px;background:var(--card2);border-radius:2px;overflow:hidden}
+.lfill{height:100%;width:0;background:linear-gradient(90deg,var(--ac2),var(--ac));border-radius:2px;transition:width 1.5s ease}
+
+/* STATUS */
+#sbar{position:fixed;top:0;left:0;right:0;z-index:200;padding:6px;font-size:12px;text-align:center;display:none}
+#sbar.on{background:rgba(16,185,129,.15);color:var(--gn);display:block}
+#sbar.off{background:rgba(244,63,94,.15);color:var(--rd);display:block}
+
+/* BG */
+#bgc{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.3}
+
+/* LAYOUT */
+.wrap{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:5rem 1.25rem 4rem}
+
+/* HEADER */
+.hdr{text-align:center;padding:2rem 0}
+.htitle{font-family:'Bebas Neue',sans-serif;font-size:clamp(60px,12vw,110px);letter-spacing:6px;line-height:.9;background:linear-gradient(135deg,#e0d7ff,#a78bfa,#7c3aed,#4f1fd4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:pulse 4s ease-in-out infinite}
+@keyframes pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.2)}}
+.hsub{font-size:12px;letter-spacing:4px;color:var(--mu);text-transform:uppercase;margin-top:.5rem}
+
+/* TABS */
+.tabs{display:flex;gap:4px;background:var(--bg3);border:1px solid var(--b1);border-radius:14px;padding:5px;margin-bottom:2rem}
+.tab{flex:1;padding:9px 4px;text-align:center;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;color:var(--mu);border:none;background:transparent;font-family:inherit}
+.tab.on{background:var(--card2);color:var(--tx);box-shadow:0 0 20px rgba(124,58,237,.2)}
+.tab:hover:not(.on){color:var(--tx)}
+.pnl{display:none}.pnl.on{display:block}
+
+/* SECTION HEADER */
+.rh{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem}
+.lbl{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--mu)}
+.sr{display:flex;align-items:center;gap:8px}
+.si{width:52px;height:28px;text-align:center;background:var(--bg3);border:1px solid var(--b1);border-radius:6px;color:var(--tx);font-size:13px;outline:none}
+.si:focus{border-color:var(--ac)}
+
+/* PODIUM */
+.podium{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:2rem;align-items:end}
+.pod{border-radius:16px;padding:1.25rem 1rem;text-align:center;border:1px solid var(--b1);background:var(--card);transition:transform .2s}
+.pod:hover{transform:translateY(-3px)}
+.pod1{border-color:rgba(245,158,11,.3);background:linear-gradient(160deg,#1a1620,#1c1408)}
+.pod2{border-color:rgba(148,163,184,.15)}
+.pod3{border-color:rgba(205,127,50,.15)}
+.pod-medal{font-size:22px}
+.pod-av{width:50px;height:50px;border-radius:50%;margin:8px auto;display:flex;align-items:center;justify-content:center;font-size:20px;border:2px solid var(--b2);overflow:hidden}
+.pod-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.pod-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pod-score{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--ac)}
+.pod-title{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:1px}
+
+/* LEADERBOARD */
+.glow{height:1px;background:linear-gradient(90deg,transparent,var(--ac),transparent);margin:1.5rem 0;opacity:.3}
+.lb{display:flex;flex-direction:column;gap:8px}
+.lbr{display:grid;grid-template-columns:36px 44px 1fr auto auto;align-items:center;gap:10px;background:var(--card);border:1px solid var(--b1);border-radius:12px;padding:.7rem 1rem;transition:all .2s}
+.lbr:hover{border-color:var(--b2);background:var(--card2);transform:translateX(4px)}
+.lbrk{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--mu);text-align:center}
+.lbav{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:1.5px solid var(--b2);overflow:hidden}
+.lbav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.lbn{font-weight:500;font-size:14px}
+.lbt{font-size:11px;color:var(--mu)}
+.lbs{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--ac)}
+.lbc{display:flex;gap:6px;align-items:center}
+.btp{width:30px;height:30px;border-radius:50%;border:1.5px solid;background:transparent;cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-weight:600;line-height:1}
+.bplus{color:var(--gn);border-color:rgba(16,185,129,.4)}.bplus:hover{background:rgba(16,185,129,.15);transform:scale(1.1)}
+.bminus{color:var(--rd);border-color:rgba(244,63,94,.4)}.bminus:hover{background:rgba(244,63,94,.15);transform:scale(1.1)}
+
+/* ADD FORM */
+.ac{background:var(--card);border:1px solid var(--b1);border-radius:16px;padding:1.5rem}
+.ar{display:flex;gap:10px;margin-bottom:1rem}
+.fi{flex:1;padding:10px 14px;background:var(--bg3);border:1px solid var(--b1);border-radius:10px;color:var(--tx);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--ac)}.fi::placeholder{color:var(--mu)}
+.bm{padding:10px 20px;background:var(--ac2);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit}
+.bm:hover{background:#6d28d9;transform:translateY(-1px)}.bm:active{transform:scale(.97)}
+.plbl{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);margin-bottom:.5rem}
+.epick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem}
+.eb{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--b1);background:var(--bg3);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.eb:hover,.eb.on{border-color:var(--ac);background:rgba(167,139,250,.15)}
+.cpick{display:flex;gap:8px;flex-wrap:wrap}
+.cd{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;transition:all .15s}
+.cd.on{border-color:#fff;transform:scale(1.15)}
+
+/* PHOTO UPLOAD */
+.photo-upload-area{display:flex;align-items:center;gap:14px;margin-top:.75rem;margin-bottom:.25rem}
+.photo-circle{width:54px;height:54px;border-radius:50%;border:2px dashed var(--b2);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;position:relative;overflow:hidden;transition:border-color .2s;flex-shrink:0}
+.photo-circle:hover{border-color:var(--ac)}
+.photo-circle input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.photo-circle img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.photo-info{font-size:12px;color:var(--mu);line-height:1.6}
+.photo-clear{margin-top:4px;padding:3px 10px;background:transparent;border:1px solid rgba(244,63,94,.3);border-radius:6px;color:var(--rd);font-size:11px;cursor:pointer;font-family:inherit;transition:all .15s;display:none}
+.photo-clear:hover{background:rgba(244,63,94,.1)}
+
+/* PROFILES */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.pc{background:var(--card);border:1px solid var(--b1);border-radius:16px;padding:1.5rem 1rem;text-align:center;transition:all .2s;position:relative;overflow:hidden}
+.pc:hover{border-color:var(--b2);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.pca{width:62px;height:62px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:26px;border:2px solid var(--b2);position:relative;overflow:hidden}
+.pca img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.pcrown{position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:18px}
+.pcn{font-size:15px;font-weight:600;margin-bottom:4px}
+.pcb{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:600;margin-bottom:10px}
+.pcs{font-family:'Bebas Neue',sans-serif;font-size:46px;line-height:1}
+.pcsl{font-size:11px;color:var(--mu);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+.pst{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.sb{background:var(--bg3);border-radius:8px;padding:8px;text-align:center}
+.sv{font-size:16px;font-weight:600}
+.sl{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}
+.pc-actions{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.pc:hover .pc-actions{opacity:1}
+.pac{width:24px;height:24px;border-radius:50%;background:transparent;border:1px solid var(--b1);color:var(--mu);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.pac.edit:hover{background:rgba(167,139,250,.2);color:var(--ac);border-color:rgba(167,139,250,.4)}
+.pac.del:hover{background:rgba(244,63,94,.2);color:var(--rd);border-color:rgba(244,63,94,.4)}
+.tm{margin-top:10px;text-align:left}
+.tml{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);margin-bottom:6px;text-align:center}
+.tmr{display:flex;align-items:center;gap:8px;background:var(--bg3);border-radius:8px;padding:5px 8px;margin-bottom:4px}
+.tmd{font-family:'Bebas Neue',sans-serif;font-size:17px;min-width:34px;color:var(--gn)}
+.tmn{font-size:11px;color:var(--mu);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic}
+
+/* HISTORY */
+.hl{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow-y:auto;padding-right:4px}
+.hl::-webkit-scrollbar{width:4px}.hl::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+.hi{display:flex;align-items:flex-start;gap:10px;background:var(--card);border:1px solid var(--b1);border-radius:10px;padding:.65rem 1rem}
+.hd{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.hb{flex:1;min-width:0}
+.ht{font-size:13px;color:var(--mu)}
+.ht strong{color:var(--tx);font-weight:500}
+.nc{display:inline-flex;align-items:center;gap:3px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.2);border-radius:5px;padding:2px 6px;font-size:11px;color:var(--ac);margin-top:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hr2{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
+.hsc{font-family:'Bebas Neue',sans-serif;font-size:20px}
+.htm{font-size:10px;color:var(--mu)}
+.gn{color:var(--gn)}.rd{color:var(--rd)}
+
+/* TOAST */
+#toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card2);border:1px solid var(--b2);border-radius:12px;padding:.75rem 1.5rem;font-size:14px;font-weight:500;transition:transform .35s cubic-bezier(.34,1.56,.64,1);z-index:9998;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
+#toast.on{transform:translateX(-50%) translateY(0)}
+
+/* SCORE POPUP */
+.spop{position:fixed;font-family:'Bebas Neue',sans-serif;font-size:38px;pointer-events:none;z-index:9997;animation:pf 1.2s ease-out forwards}
+@keyframes pf{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-90px) scale(1.5)}}
+
+/* MODALS */
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(3px)}
+.mbg.on{opacity:1;pointer-events:all}
+.modal{background:var(--card2);border:1px solid var(--b2);border-radius:18px;padding:1.5rem;width:100%;max-width:420px;transform:translateY(20px) scale(.97);transition:transform .25s cubic-bezier(.34,1.56,.64,1);max-height:90vh;overflow-y:auto}
+.mbg.on .modal{transform:translateY(0) scale(1)}
+.mti{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:.5rem}
+.mwh{font-size:13px;color:var(--mu);margin-bottom:.75rem}
+.mno{width:100%;background:var(--bg3);border:1px solid var(--b2);border-radius:10px;color:var(--tx);font-family:inherit;font-size:14px;padding:10px 14px;resize:none;outline:none;transition:border-color .15s;min-height:70px}
+.mno:focus{border-color:var(--ac)}.mno::placeholder{color:var(--mu)}
+.mbt{display:flex;gap:8px;margin-top:1rem;justify-content:flex-end}
+.bcan{padding:8px 16px;background:transparent;border:1px solid var(--b2);border-radius:8px;color:var(--mu);cursor:pointer;font-family:inherit;font-size:13px;transition:all .15s}
+.bcan:hover{color:var(--tx)}
+.bcon{padding:8px 18px;background:var(--ac2);border:none;border-radius:8px;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;transition:all .15s}
+.bcon:hover{background:#6d28d9}
+.mdivider{height:1px;background:var(--b1);margin:.75rem 0}
+
+/* MISC */
+.emp{text-align:center;padding:3rem;color:var(--mu);font-size:14px}
+.dbt{padding:6px 14px;background:transparent;border:1px solid rgba(244,63,94,.3);border-radius:8px;color:var(--rd);font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s}
+.dbt:hover{background:rgba(244,63,94,.1)}
+.rr{display:flex;justify-content:flex-end;margin-top:1.5rem}
+
+/* ── CROP MODAL ── */
+#cropBg{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:600;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(6px)}
+#cropBg.on{opacity:1;pointer-events:all}
+.crop-modal{background:var(--card2);border:1px solid var(--b2);border-radius:20px;padding:1.5rem;width:100%;max-width:380px;text-align:center}
+.crop-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:1rem}
+.crop-stage{position:relative;width:280px;height:280px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;cursor:grab;touch-action:none;user-select:none}
+.crop-stage:active{cursor:grabbing}
+.crop-stage img{position:absolute;transform-origin:0 0;pointer-events:none;max-width:none}
+.crop-overlay{position:absolute;inset:0;pointer-events:none}
+.crop-overlay::after{content:'';position:absolute;inset:0;box-shadow:inset 0 0 0 9999px rgba(0,0,0,.45);border-radius:50%;width:240px;height:240px;left:50%;top:50%;transform:translate(-50%,-50%)}
+.crop-overlay::before{content:'';position:absolute;width:240px;height:240px;left:50%;top:50%;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.7);border-radius:50%;z-index:1}
+.crop-controls{margin-top:1rem;display:flex;align-items:center;gap:10px;justify-content:center}
+.crop-controls input[type=range]{flex:1;accent-color:var(--ac);height:4px}
+.crop-btns{display:flex;gap:8px;margin-top:1rem;justify-content:flex-end}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="ltitle">AURA</div>
+  <div class="lsub">System punktów paczki</div>
+  <div class="lbar"><div class="lfill" id="lfill"></div></div>
+</div>
+
+<div id="sbar"></div>
+<canvas id="bgc"></canvas>
+
+<div class="wrap">
+  <div class="hdr">
+    <div class="htitle">AURA</div>
+    <div class="hsub">System punktów paczki</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on"  onclick="goTab('ranking')">🏆 Ranking</button>
+    <button class="tab"     onclick="goTab('profiles')">👤 Profile</button>
+    <button class="tab"     onclick="goTab('add')">➕ Dodaj</button>
+    <button class="tab"     onclick="goTab('historia')">📜 Historia</button>
+  </div>
+
+  <!-- RANKING -->
+  <div class="pnl on" id="pnl-ranking">
+    <div class="rh">
+      <span class="lbl">Aktualne wyniki</span>
+      <div class="sr"><span class="lbl">krok:</span><input class="si" type="number" id="krok" value="1" min="1" max="9999"></div>
+    </div>
+    <div class="podium" id="podium"></div>
+    <div class="glow"></div>
+    <div class="lb" id="lb"></div>
+    <div class="emp" id="emp-r" style="display:none">Brak graczy — dodaj w zakładce ➕</div>
+  </div>
+
+  <!-- PROFILES -->
+  <div class="pnl" id="pnl-profiles">
+    <div class="rh"><span class="lbl">Karty graczy</span></div>
+    <div class="pgrid" id="pgrid"></div>
+    <div class="emp" id="emp-p" style="display:none">Brak profili. Dodaj znajomych!</div>
+  </div>
+
+  <!-- ADD -->
+  <div class="pnl" id="pnl-add">
+    <div class="ac">
+      <div class="lbl" style="margin-bottom:1rem">Nowy gracz</div>
+      <div class="ar">
+        <input class="fi" id="iname" type="text" placeholder="Imię / ksywka..." maxlength="20">
+        <button class="bm" onclick="dodajGracza()">Dodaj</button>
+      </div>
+      <div class="plbl">Emoji awatara</div>
+      <div class="epick" id="epick"></div>
+      <div class="plbl" style="margin-top:.75rem">Kolor</div>
+      <div class="cpick" id="cpick"></div>
+
+      <div class="mdivider" style="margin-top:1.25rem"></div>
+      <div class="plbl" style="margin-bottom:.6rem">Zdjęcie profilowe (opcjonalne)</div>
+      <div class="photo-upload-area">
+        <div class="photo-circle" id="addPhotoCircle">
+          <span id="addPhotoEmoji">📷</span>
+          <input type="file" accept="image/*" onchange="handleAddPhoto(event)">
+        </div>
+        <div>
+          <div class="photo-info">Kliknij żeby wybrać zdjęcie<br>Max rozmiar: 300KB</div>
+          <button class="photo-clear" id="addPhotoClear" onclick="clearAddPhoto()">✕ Usuń zdjęcie</button>
+        </div>
+      </div>
+    </div>
+    <div class="rr"><button class="dbt" onclick="resetAll()">🗑 Resetuj wszystkie dane</button></div>
+  </div>
+
+  <!-- HISTORIA -->
+  <div class="pnl" id="pnl-historia">
+    <div class="rh">
+      <span class="lbl">Historia wydarzeń</span>
+      <button class="dbt" onclick="czyscHistorie()">Wyczyść</button>
+    </div>
+    <div class="hl" id="hlist"></div>
+    <div class="emp" id="emp-h" style="display:none">Brak historii. Zacznij dodawać punkty!</div>
+  </div>
+</div>
+
+<!-- MODAL NOTATKI -->
+<div class="mbg" id="mbg" onclick="klikTlo(event)">
+  <div class="modal">
+    <div class="mti">Dodaj notatkę</div>
+    <div class="mwh" id="mwh"></div>
+    <textarea class="mno" id="mno" placeholder="Za co ta aura? (opcjonalne)..." maxlength="120" rows="3"></textarea>
+    <div class="mbt">
+      <button class="bcan" onclick="anulujModal()">Anuluj</button>
+      <button class="bcon" onclick="zatwierdzModal()">Zatwierdź ↗</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDYCJI -->
+<div class="mbg" id="ebg" onclick="klikTloEdit(event)">
+  <div class="modal">
+    <div class="mti">Edytuj profil</div>
+    <div style="margin-bottom:.9rem">
+      <div class="plbl" style="margin-bottom:.5rem">Imię</div>
+      <input class="fi" id="ename" type="text" maxlength="20" placeholder="Imię / ksywka..." style="width:100%">
+    </div>
+    <div style="margin-bottom:.9rem">
+      <div class="plbl" style="margin-bottom:.5rem">Emoji</div>
+      <div class="epick" id="eepick"></div>
+    </div>
+    <div style="margin-bottom:.9rem">
+      <div class="plbl" style="margin-bottom:.5rem">Kolor</div>
+      <div class="cpick" id="ecpick"></div>
+    </div>
+    <div class="mdivider"></div>
+    <div class="plbl" style="margin-bottom:.6rem">Zdjęcie profilowe</div>
+    <div class="photo-upload-area">
+      <div class="photo-circle" id="editPhotoCircle">
+        <span id="editPhotoEmoji">📷</span>
+        <input type="file" accept="image/*" onchange="handleEditPhoto(event)">
+      </div>
+      <div>
+        <div class="photo-info">Kliknij żeby zmienić zdjęcie<br>Max rozmiar: 300KB</div>
+        <button class="photo-clear" id="editPhotoClear" onclick="clearEditPhoto()">✕ Usuń zdjęcie</button>
+      </div>
+    </div>
+    <div class="mbt">
+      <button class="bcan" onclick="anulujEdit()">Anuluj</button>
+      <button class="bcon" onclick="zatwierdzEdit()">Zapisz ✓</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- CROP MODAL -->
+<div id="cropBg">
+  <div class="crop-modal">
+    <div class="crop-title">Dopasuj zdjęcie</div>
+    <div class="crop-stage" id="cropStage">
+      <img id="cropImg" src="" alt="">
+      <div class="crop-overlay"></div>
+    </div>
+    <div class="crop-controls">
+      <span style="font-size:13px;color:var(--mu)">🔍</span>
+      <input type="range" id="cropZoom" min="1" max="4" step="0.01" value="1" oninput="cropZoomChange()">
+      <span style="font-size:13px;color:var(--mu)">+</span>
+    </div>
+    <div class="crop-btns">
+      <button class="bcan" onclick="anulujCrop()">Anuluj</button>
+      <button class="bcon" onclick="zatwierdzCrop()">Użyj zdjęcia ↗</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  FIREBASE
+// ══════════════════════════════════════════════
+firebase.initializeApp({
+  apiKey:"AIzaSyBoRXqGPxNJMvXdHIBx7SuWivAr94sqMa8",
+  authDomain:"licznik-aury-f74a6.firebaseapp.com",
+  databaseURL:"https://licznik-aury-12eba-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"licznik-aury-f74a6",
+  storageBucket:"licznik-aury-f74a6.firebasestorage.app",
+  messagingSenderId:"260528090852",
+  appId:"1:260528090852:web:29eec9f25f65143e2406f1"
+});
+var FDB = firebase.database();
+
+// ══════════════════════════════════════════════
+//  STAŁE
+// ══════════════════════════════════════════════
+var EMOJI = ['😎','🔥','👑','💀','🐐','🌟','⚡','🦁','🐺','🎯','💎','🧠','👻','🚀','🐉','🦊','🎭','🤖'];
+var KOLORY = ['#7c3aed','#0891b2','#059669','#dc2626','#d97706','#db2777','#4f46e5','#0284c7','#16a34a','#ea580c'];
+var TYTULY = [
+  {min:-99999,t:'Widmo',c:'#6b7280'},
+  {min:0,t:'Zwykły',c:'#9ca3af'},
+  {min:50,t:'Obiecujący',c:'#60a5fa'},
+  {min:150,t:'Zaufany',c:'#34d399'},
+  {min:300,t:'Szanowany',c:'#a78bfa'},
+  {min:500,t:'Elita',c:'#f59e0b'},
+  {min:1000,t:'Legenda',c:'#f43f5e'},
+  {min:2000,t:'Bóg Aury',c:'#e879f9'}
+];
+
+// ══════════════════════════════════════════════
+//  STAN
+// ══════════════════════════════════════════════
+var GRACZE = [];
+var ZDARZENIA = [];
+var selEmoji = EMOJI[0];
+var selKolor = KOLORY[0];
+var selPhoto = null;
+var editId = null;
+var editEmoji = EMOJI[0];
+var editKolor = KOLORY[0];
+var editPhoto = null;
+var editPhotoChanged = false;
+var pending = null;
+var gotowy = false;
+
+// ══════════════════════════════════════════════
+//  FIREBASE NASŁUCHY
+// ══════════════════════════════════════════════
+FDB.ref('gracze').on('value', function(s) {
+  var v = s.val();
+  GRACZE = v ? Object.keys(v).map(function(k){ return Object.assign({}, v[k], {_k:k}); }) : [];
+  if (gotowy) { rysujRanking(); rysujProfile(); }
+});
+
+FDB.ref('zdarzenia').on('value', function(s) {
+  var v = s.val();
+  ZDARZENIA = v
+    ? Object.keys(v).map(function(k){ return Object.assign({}, v[k], {_k:k}); })
+        .sort(function(a,b){ return b.ts - a.ts; }).slice(0, 300)
+    : [];
+  if (gotowy) rysujHistorie();
+  if (!gotowy) { gotowy = true; ukryjLoader(); rysujWszystko(); }
+});
+
+FDB.ref('.info/connected').on('value', function(s) {
+  var sb = document.getElementById('sbar');
+  if (s.val()) {
+    sb.textContent = '● Połączono z bazą danych';
+    sb.className = 'on';
+    setTimeout(function(){ sb.style.display = 'none'; }, 2500);
+  } else {
+    sb.textContent = '● Brak połączenia';
+    sb.className = 'off';
+  }
+});
+
+// ══════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════
+function getTytul(sc) {
+  var t = TYTULY[0];
+  for (var i = 0; i < TYTULY.length; i++) if (sc >= TYTULY[i].min) t = TYTULY[i];
+  return t;
+}
+function inicjaly(n) { return n.trim().split(/\s+/).map(function(w){ return w[0].toUpperCase(); }).slice(0,2).join(''); }
+function temu(ts) {
+  var d = (Date.now() - ts) / 1000;
+  if (d < 60) return 'przed chwilą';
+  if (d < 3600) return Math.floor(d/60) + 'min temu';
+  if (d < 86400) return Math.floor(d/3600) + 'h temu';
+  return Math.floor(d/86400) + 'd temu';
+}
+function posort() { return GRACZE.slice().sort(function(a,b){ return b.score - a.score; }); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function znajdz(id) { for (var i=0;i<GRACZE.length;i++) if (String(GRACZE[i].id)===String(id)) return GRACZE[i]; return null; }
+
+// Avatar: zdjęcie lub emoji/inicjały
+function avHTML(p, size) {
+  if (p.photo) return '<img src="' + p.photo + '" style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;object-fit:cover">';
+  return p.emoji || inicjaly(p.name);
+}
+
+// ══════════════════════════════════════════════
+//  ZDJĘCIA — DODAJ GRACZA
+// ══════════════════════════════════════════════
+function handleAddPhoto(ev) {
+  var file = ev.target.files[0];
+  if (!file) return;
+  if (file.size > 5000000) return toast('Zdjęcie za duże! Max 5MB');
+  var reader = new FileReader();
+  reader.onload = function(e) { otworzCrop(e.target.result, 'add'); };
+  reader.readAsDataURL(file);
+}
+
+function clearAddPhoto() {
+  selPhoto = null;
+  var circle = document.getElementById('addPhotoCircle');
+  circle.innerHTML = '<span id="addPhotoEmoji">📷</span><input type="file" accept="image/*" onchange="handleAddPhoto(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">';
+  document.getElementById('addPhotoClear').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════
+//  ZDJĘCIA — EDYCJA
+// ══════════════════════════════════════════════
+function handleEditPhoto(ev) {
+  var file = ev.target.files[0];
+  if (!file) return;
+  if (file.size > 5000000) return toast('Zdjęcie za duże! Max 5MB');
+  var reader = new FileReader();
+  reader.onload = function(e) { otworzCrop(e.target.result, 'edit'); };
+  reader.readAsDataURL(file);
+}
+
+function clearEditPhoto() {
+  editPhoto = null;
+  editPhotoChanged = true;
+  var circle = document.getElementById('editPhotoCircle');
+  circle.innerHTML = '<span>📷</span><input type="file" accept="image/*" onchange="handleEditPhoto(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">';
+  document.getElementById('editPhotoClear').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════
+//  FIREBASE ZAPIS
+// ══════════════════════════════════════════════
+function zapiszGracza(g) {
+  var k = g._k; var d = Object.assign({}, g); delete d._k;
+  if (k) FDB.ref('gracze/' + k).set(d);
+  else { var r = FDB.ref('gracze').push(); g._k = r.key; r.set(d); }
+}
+function zapiszZdarzenie(z) { FDB.ref('zdarzenia').push().set(z); }
+function usunGraczaDB(k) { FDB.ref('gracze/' + k).remove(); }
+
+// ══════════════════════════════════════════════
+//  ZMIANA PUNKTÓW + MODAL
+// ══════════════════════════════════════════════
+function zmienPunkty(id, dir) {
+  var krok = parseInt(document.getElementById('krok').value) || 1;
+  var g = znajdz(id); if (!g) return;
+  var delta = dir * krok;
+  pending = {id: id, delta: delta};
+  document.getElementById('mwh').textContent = (g.emoji||'') + ' ' + g.name + '  ·  ' + (delta>0?'+':'') + delta + ' aury';
+  document.getElementById('mno').value = '';
+  document.getElementById('mbg').classList.add('on');
+  setTimeout(function(){ document.getElementById('mno').focus(); }, 200);
+}
+function zatwierdzModal() {
+  if (!pending) return;
+  zastosujPunkty(pending.id, pending.delta, document.getElementById('mno').value.trim());
+  zamknijModal();
+}
+function anulujModal() { zamknijModal(); }
+function zamknijModal() { document.getElementById('mbg').classList.remove('on'); pending = null; }
+function klikTlo(ev) { if (ev.target === document.getElementById('mbg')) zamknijModal(); }
+document.addEventListener('keydown', function(ev) { if (ev.key === 'Escape') { zamknijModal(); anulujEdit(); } });
+document.getElementById('mno').addEventListener('keydown', function(ev) {
+  if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); zatwierdzModal(); }
+});
+
+function zastosujPunkty(id, delta, notatka) {
+  var g = znajdz(id); if (!g) return;
+  g.score = (g.score||0) + delta;
+  g.dodane = (g.dodane||0) + (delta>0?delta:0);
+  g.stracone = (g.stracone||0) + (delta<0?Math.abs(delta):0);
+  g.zmiany = (g.zmiany||0) + 1;
+  zapiszGracza(g);
+  var z = {id: String(id), name: g.name, delta: delta, ts: Date.now()};
+  if (notatka) z.note = notatka;
+  zapiszZdarzenie(z);
+  popup(delta);
+  toast(g.name + ': ' + (delta>0?'+':'') + delta + ' aury' + (notatka?' — '+notatka:''));
+}
+
+function popup(delta) {
+  var el = document.createElement('div');
+  el.className = 'spop';
+  el.style.left = (Math.random()*50+25)+'%';
+  el.style.top = (Math.random()*25+35)+'%';
+  el.style.color = delta>0?'#10b981':'#f43f5e';
+  el.textContent = (delta>0?'+':'') + delta;
+  document.body.appendChild(el);
+  setTimeout(function(){ el.remove(); }, 1300);
+}
+
+// ══════════════════════════════════════════════
+//  DODAJ / USUŃ GRACZA
+// ══════════════════════════════════════════════
+function dodajGracza() {
+  var name = document.getElementById('iname').value.trim();
+  if (!name) return toast('Wpisz imię!');
+  for (var i=0;i<GRACZE.length;i++)
+    if (GRACZE[i].name.toLowerCase() === name.toLowerCase()) return toast('Taki gracz już istnieje!');
+  var g = {id:String(Date.now()), name:name, emoji:selEmoji, color:selKolor, score:0, dodane:0, stracone:0, zmiany:0};
+  if (selPhoto) g.photo = selPhoto;
+  zapiszGracza(g);
+  document.getElementById('iname').value = '';
+  clearAddPhoto();
+  toast(name + ' dołączył do paczki! 🎉');
+  goTab('ranking');
+}
+
+function usunGracza(id) {
+  var g = znajdz(id); if (!g) return;
+  if (!confirm('Usunąć ' + g.name + '?')) return;
+  usunGraczaDB(g._k);
+  toast(g.name + ' usunięty');
+}
+
+function resetAll() {
+  if (!confirm('Usunąć WSZYSTKIE dane? Tego nie można cofnąć.')) return;
+  FDB.ref('gracze').set(null); FDB.ref('zdarzenia').set(null); toast('Reset gotowy');
+}
+
+function czyscHistorie() {
+  if (!confirm('Wyczyścić historię?')) return;
+  FDB.ref('zdarzenia').set(null); toast('Historia wyczyszczona');
+}
+
+// ══════════════════════════════════════════════
+//  EDYCJA PROFILU
+// ══════════════════════════════════════════════
+function otworzEdit(id) {
+  var g = znajdz(id); if (!g) return;
+  editId = id;
+  editEmoji = g.emoji || EMOJI[0];
+  editKolor = g.color || KOLORY[0];
+  editPhoto = g.photo || null;
+  editPhotoChanged = false;
+  document.getElementById('ename').value = g.name;
+  // Ustaw podgląd zdjęcia
+  var circle = document.getElementById('editPhotoCircle');
+  if (g.photo) {
+    circle.innerHTML = '<img src="'+g.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%"><input type="file" accept="image/*" onchange="handleEditPhoto(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">';
+    document.getElementById('editPhotoClear').style.display = 'inline-block';
+  } else {
+    circle.innerHTML = '<span>📷</span><input type="file" accept="image/*" onchange="handleEditPhoto(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">';
+    document.getElementById('editPhotoClear').style.display = 'none';
+  }
+  rysujEditPickery();
+  document.getElementById('ebg').classList.add('on');
+  setTimeout(function(){ document.getElementById('ename').focus(); }, 200);
+}
+
+function rysujEditPickery() {
+  document.getElementById('eepick').innerHTML = EMOJI.map(function(em){
+    return '<button class="eb'+(em===editEmoji?' on':'')+'" onclick="pickEditE(\''+em+'\')">'+em+'</button>';
+  }).join('');
+  document.getElementById('ecpick').innerHTML = KOLORY.map(function(ko){
+    return '<div class="cd'+(ko===editKolor?' on':'')+'" style="background:'+ko+'" onclick="pickEditK(\''+ko+'\')"></div>';
+  }).join('');
+}
+function pickEditE(em) { editEmoji = em; rysujEditPickery(); }
+function pickEditK(ko) { editKolor = ko; rysujEditPickery(); }
+
+function zatwierdzEdit() {
+  var name = document.getElementById('ename').value.trim();
+  if (!name) return toast('Wpisz imię!');
+  var g = znajdz(editId); if (!g) return;
+  for (var i=0;i<GRACZE.length;i++) {
+    if (String(GRACZE[i].id) !== String(editId) && GRACZE[i].name.toLowerCase() === name.toLowerCase())
+      return toast('Taki gracz już istnieje!');
+  }
+  g.name = name;
+  g.emoji = editEmoji;
+  g.color = editKolor;
+  if (editPhotoChanged) {
+    if (editPhoto) g.photo = editPhoto;
+    else delete g.photo;
+  }
+  zapiszGracza(g);
+  anulujEdit();
+  toast('Profil zaktualizowany ✓');
+}
+
+function anulujEdit() {
+  document.getElementById('ebg').classList.remove('on');
+  editId = null;
+  editPhotoChanged = false;
+}
+function klikTloEdit(ev) { if (ev.target === document.getElementById('ebg')) anulujEdit(); }
+document.getElementById('ename').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') zatwierdzEdit(); });
+
+// ══════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════
+function rysujWszystko() { rysujRanking(); rysujProfile(); rysujHistorie(); }
+
+function rysujRanking() {
+  var lista = posort();
+  var podEl = document.getElementById('podium');
+  var lbEl  = document.getElementById('lb');
+  var empEl = document.getElementById('emp-r');
+  if (!lista.length) { podEl.innerHTML=''; lbEl.innerHTML=''; empEl.style.display='block'; return; }
+  empEl.style.display = 'none';
+
+  var sloty = [lista[1], lista[0], lista[2]];
+  var medale = ['🥈','🥇','🥉'];
+  var klasy  = ['pod pod2','pod pod1','pod pod3'];
+  podEl.innerHTML = sloty.map(function(p, i) {
+    if (!p) return '<div class="'+klasy[i]+'" style="opacity:.2"><div class="pod-medal">'+medale[i]+'</div></div>';
+    var ty = getTytul(p.score);
+    return '<div class="'+klasy[i]+'">'
+      +'<div class="pod-medal">'+medale[i]+'</div>'
+      +'<div class="pod-av" style="background:'+p.color+'22;border-color:'+p.color+'55">'+avHTML(p,50)+'</div>'
+      +'<div class="pod-name">'+esc(p.name)+'</div>'
+      +'<div class="pod-score">'+p.score+'</div>'
+      +'<div class="pod-title" style="color:'+ty.c+'">'+ty.t+'</div>'
+      +'</div>';
+  }).join('');
+
+  lbEl.innerHTML = lista.map(function(p, i) {
+    var ty = getTytul(p.score);
+    return '<div class="lbr">'
+      +'<div class="lbrk">'+(i+1)+'</div>'
+      +'<div class="lbav" style="background:'+p.color+'22;border-color:'+p.color+'55">'+avHTML(p,36)+'</div>'
+      +'<div><div class="lbn">'+esc(p.name)+'</div><div class="lbt" style="color:'+ty.c+'">'+ty.t+'</div></div>'
+      +'<div class="lbs" style="'+(p.score<0?'color:var(--rd)':p.score===0?'color:var(--mu)':'')+'">'+p.score+'</div>'
+      +'<div class="lbc">'
+      +'<button class="btp bminus" onclick="zmienPunkty(\''+p.id+'\',-1)">−</button>'
+      +'<button class="btp bplus"  onclick="zmienPunkty(\''+p.id+'\',1)">+</button>'
+      +'</div></div>';
+  }).join('');
+}
+
+function topMomenty(pid) {
+  var mom = [];
+  for (var i=0;i<ZDARZENIA.length;i++) {
+    var z = ZDARZENIA[i];
+    if (String(z.id)===String(pid) && z.note && z.delta>0) mom.push(z);
+  }
+  mom.sort(function(a,b){ return b.delta-a.delta; }); mom = mom.slice(0,3);
+  if (!mom.length) return '';
+  var h = '<div class="tm"><div class="tml">🏅 Top momenty</div>';
+  for (var j=0;j<mom.length;j++)
+    h += '<div class="tmr"><div class="tmd">+'+mom[j].delta+'</div><div class="tmn">'+esc(mom[j].note)+'</div></div>';
+  return h + '</div>';
+}
+
+function rysujProfile() {
+  var lista = posort();
+  var grid = document.getElementById('pgrid');
+  var emp  = document.getElementById('emp-p');
+  if (!lista.length) { grid.innerHTML=''; emp.style.display='block'; return; }
+  emp.style.display = 'none';
+  var h = '';
+  for (var i=0;i<lista.length;i++) {
+    var p = lista[i]; var ty = getTytul(p.score);
+    var sc = p.score<0?'var(--rd)':p.score===0?'var(--mu)':'var(--ac)';
+    var avInner = p.photo
+      ? '<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
+      : '<span style="font-size:26px">'+(p.emoji||inicjaly(p.name))+'</span>';
+    h += '<div class="pc">'
+      +'<div class="pc-actions">'
+      +'<button class="pac edit" onclick="otworzEdit(\''+p.id+'\')">✏️</button>'
+      +'<button class="pac del"  onclick="usunGracza(\''+p.id+'\')">✕</button>'
+      +'</div>'
+      +'<div class="pca" style="background:'+p.color+'22;border-color:'+p.color+'55">'
+      +(i===0?'<div class="pcrown">👑</div>':'')
+      +avInner+'</div>'
+      +'<div class="pcn">'+esc(p.name)+'</div>'
+      +'<div class="pcb" style="color:'+ty.c+';border:1px solid '+ty.c+'33;background:'+ty.c+'12">'+ty.t+'</div>'
+      +'<div class="pcs" style="color:'+sc+'">'+p.score+'</div>'
+      +'<div class="pcsl">punktów aury</div>'
+      +'<div class="pst">'
+      +'<div class="sb"><div class="sv" style="color:var(--gn)">+'+(p.dodane||0)+'</div><div class="sl">zdobyte</div></div>'
+      +'<div class="sb"><div class="sv" style="color:var(--rd)">-'+(p.stracone||0)+'</div><div class="sl">stracone</div></div>'
+      +'<div class="sb"><div class="sv">'+(p.zmiany||0)+'</div><div class="sl">zmian</div></div>'
+      +'<div class="sb"><div class="sv">'+(i+1)+'</div><div class="sl">miejsce</div></div>'
+      +'</div>'
+      +topMomenty(p.id)
+      +'</div>';
+  }
+  grid.innerHTML = h;
+}
+
+function rysujHistorie() {
+  var listEl = document.getElementById('hlist');
+  var empEl  = document.getElementById('emp-h');
+  if (!ZDARZENIA.length) { listEl.innerHTML=''; empEl.style.display='block'; return; }
+  empEl.style.display = 'none';
+  var h = '';
+  for (var i=0;i<ZDARZENIA.length;i++) {
+    var z = ZDARZENIA[i]; var pos = z.delta>0;
+    h += '<div class="hi">'
+      +'<div class="hd" style="background:'+(pos?'#10b981':'#f43f5e')+'"></div>'
+      +'<div class="hb"><div class="ht"><strong>'+esc(z.name)+'</strong> '+(pos?'zyskał':'stracił')+' aurę</div>'
+      +(z.note?'<div class="nc">💬 '+esc(z.note)+'</div>':'')+'</div>'
+      +'<div class="hr2"><div class="hsc '+(pos?'gn':'rd')+'">'+(pos?'+':'')+z.delta+'</div>'
+      +'<div class="htm">'+temu(z.ts)+'</div></div></div>';
+  }
+  listEl.innerHTML = h;
+}
+
+// ══════════════════════════════════════════════
+//  ZAKŁADKI
+// ══════════════════════════════════════════════
+var ZAKLADKI = ['ranking','profiles','add','historia'];
+function goTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t,i){ t.classList.toggle('on', ZAKLADKI[i]===name); });
+  document.querySelectorAll('.pnl').forEach(function(p){ p.classList.remove('on'); });
+  document.getElementById('pnl-'+name).classList.add('on');
+  if (name==='ranking')  { rysujRanking(); }
+  if (name==='profiles') { rysujProfile(); }
+  if (name==='historia') { rysujHistorie(); }
+}
+
+// ══════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════
+var tTimer;
+function toast(msg) {
+  var el = document.getElementById('toast'); el.textContent = msg; el.classList.add('on');
+  clearTimeout(tTimer); tTimer = setTimeout(function(){ el.classList.remove('on'); }, 2500);
+}
+
+// ══════════════════════════════════════════════
+//  PICKERY
+// ══════════════════════════════════════════════
+function rysujPickery() {
+  document.getElementById('epick').innerHTML = EMOJI.map(function(em){
+    return '<button class="eb'+(em===selEmoji?' on':'')+'" onclick="pickE(\''+em+'\')">'+em+'</button>';
+  }).join('');
+  document.getElementById('cpick').innerHTML = KOLORY.map(function(ko){
+    return '<div class="cd'+(ko===selKolor?' on':'')+'" style="background:'+ko+'" onclick="pickK(\''+ko+'\')"></div>';
+  }).join('');
+}
+function pickE(em) { selEmoji = em; rysujPickery(); }
+function pickK(ko) { selKolor = ko; rysujPickery(); }
+document.getElementById('iname').addEventListener('keydown', function(ev){ if(ev.key==='Enter') dodajGracza(); });
+
+// ══════════════════════════════════════════════
+//  LOADER
+// ══════════════════════════════════════════════
+function ukryjLoader() {
+  document.getElementById('lfill').style.width = '100%';
+  setTimeout(function(){
+    var l = document.getElementById('loader');
+    l.classList.add('gone');
+    setTimeout(function(){ l.style.display='none'; }, 600);
+  }, 400);
+}
+setTimeout(function(){ if(!gotowy){ gotowy=true; ukryjLoader(); rysujWszystko(); } }, 8000);
+setTimeout(function(){ document.getElementById('lfill').style.width = '60%'; }, 100);
+
+// ══════════════════════════════════════════════
+//  TŁO — CZĄSTECZKI
+// ══════════════════════════════════════════════
+(function(){
+  var cv = document.getElementById('bgc');
+  var cx = cv.getContext('2d');
+  var W, H, pts = [];
+  function rz(){ W=cv.width=innerWidth; H=cv.height=innerHeight; }
+  function init(){
+    rz(); pts=[];
+    for(var i=0;i<70;i++) pts.push({
+      x:Math.random()*W, y:Math.random()*H,
+      vx:(Math.random()-.5)*.4, vy:(Math.random()-.5)*.4,
+      r:Math.random()*2+.5, h:260+Math.random()*40
+    });
+  }
+  function draw(){
+    cx.clearRect(0,0,W,H);
+    for(var i=0;i<pts.length;i++){
+      var p=pts[i];
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>W)p.vx*=-1;
+      if(p.y<0||p.y>H)p.vy*=-1;
+      cx.beginPath(); cx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      cx.fillStyle='hsla('+p.h+',80%,70%,.7)'; cx.fill();
+      for(var j=i+1;j<pts.length;j++){
+        var dx=p.x-pts[j].x, dy=p.y-pts[j].y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<120){
+          cx.beginPath(); cx.moveTo(p.x,p.y); cx.lineTo(pts[j].x,pts[j].y);
+          cx.strokeStyle='hsla(270,70%,70%,'+(.15*(1-d/120))+')';
+          cx.lineWidth=.5; cx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize',rz);
+  init(); draw();
+})();
+
+
+// ══════════════════════════════════════════════
+//  CROP ENGINE
+// ══════════════════════════════════════════════
+var cropTarget = null; // 'add' or 'edit'
+var cropScale = 1;
+var cropX = 0, cropY = 0;
+var cropDragStartX, cropDragStartY, cropImgStartX, cropImgStartY;
+var cropImgW, cropImgH;
+var cropDragging = false;
+var STAGE_SIZE = 280;
+var CIRCLE_SIZE = 240;
+
+function otworzCrop(dataUrl, target) {
+  cropTarget = target;
+  cropScale = 1;
+  cropX = 0; cropY = 0;
+  document.getElementById('cropZoom').value = 1;
+  var img = document.getElementById('cropImg');
+  img.onload = function() {
+    cropImgW = img.naturalWidth;
+    cropImgH = img.naturalHeight;
+    // Fit image to fill circle by default
+    var minScale = Math.max(CIRCLE_SIZE / cropImgW, CIRCLE_SIZE / cropImgH);
+    cropScale = minScale;
+    document.getElementById('cropZoom').min = minScale;
+    document.getElementById('cropZoom').max = minScale * 4;
+    document.getElementById('cropZoom').value = minScale;
+    centerImg();
+    applyTransform();
+  };
+  img.src = dataUrl;
+  document.getElementById('cropBg').classList.add('on');
+}
+
+function centerImg() {
+  var scaledW = cropImgW * cropScale;
+  var scaledH = cropImgH * cropScale;
+  cropX = (STAGE_SIZE - scaledW) / 2;
+  cropY = (STAGE_SIZE - scaledH) / 2;
+}
+
+function applyTransform() {
+  var img = document.getElementById('cropImg');
+  img.style.width = (cropImgW * cropScale) + 'px';
+  img.style.height = (cropImgH * cropScale) + 'px';
+  img.style.left = cropX + 'px';
+  img.style.top = cropY + 'px';
+}
+
+function clampPos() {
+  var scaledW = cropImgW * cropScale;
+  var scaledH = cropImgH * cropScale;
+  var circLeft = (STAGE_SIZE - CIRCLE_SIZE) / 2;
+  var circTop  = (STAGE_SIZE - CIRCLE_SIZE) / 2;
+  // Image must cover entire circle
+  var maxX = circLeft;
+  var minX = circLeft + CIRCLE_SIZE - scaledW;
+  var maxY = circTop;
+  var minY = circTop + CIRCLE_SIZE - scaledH;
+  if (cropX > maxX) cropX = maxX;
+  if (cropX < minX) cropX = minX;
+  if (cropY > maxY) cropY = maxY;
+  if (cropY < minY) cropY = minY;
+}
+
+function cropZoomChange() {
+  var newScale = parseFloat(document.getElementById('cropZoom').value);
+  // Zoom towards center of circle
+  var cx = STAGE_SIZE / 2 - cropX;
+  var cy = STAGE_SIZE / 2 - cropY;
+  cropX = STAGE_SIZE/2 - (cx / cropScale * newScale);
+  cropY = STAGE_SIZE/2 - (cy / cropScale * newScale);
+  cropScale = newScale;
+  clampPos();
+  applyTransform();
+}
+
+// Mouse drag
+var cropStage = document.getElementById('cropStage');
+cropStage.addEventListener('mousedown', function(e) {
+  cropDragging = true;
+  cropDragStartX = e.clientX;
+  cropDragStartY = e.clientY;
+  cropImgStartX = cropX;
+  cropImgStartY = cropY;
+  e.preventDefault();
+});
+document.addEventListener('mousemove', function(e) {
+  if (!cropDragging) return;
+  cropX = cropImgStartX + (e.clientX - cropDragStartX);
+  cropY = cropImgStartY + (e.clientY - cropDragStartY);
+  clampPos();
+  applyTransform();
+});
+document.addEventListener('mouseup', function() { cropDragging = false; });
+
+// Touch drag
+cropStage.addEventListener('touchstart', function(e) {
+  if (e.touches.length === 1) {
+    cropDragging = true;
+    cropDragStartX = e.touches[0].clientX;
+    cropDragStartY = e.touches[0].clientY;
+    cropImgStartX = cropX;
+    cropImgStartY = cropY;
+    e.preventDefault();
+  }
+}, {passive:false});
+cropStage.addEventListener('touchmove', function(e) {
+  if (!cropDragging || e.touches.length !== 1) return;
+  cropX = cropImgStartX + (e.touches[0].clientX - cropDragStartX);
+  cropY = cropImgStartY + (e.touches[0].clientY - cropDragStartY);
+  clampPos();
+  applyTransform();
+  e.preventDefault();
+}, {passive:false});
+cropStage.addEventListener('touchend', function() { cropDragging = false; });
+
+// Scroll to zoom
+cropStage.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  var delta = e.deltaY > 0 ? -0.05 : 0.05;
+  var newScale = Math.max(
+    parseFloat(document.getElementById('cropZoom').min),
+    Math.min(parseFloat(document.getElementById('cropZoom').max), cropScale + delta * cropScale)
+  );
+  document.getElementById('cropZoom').value = newScale;
+  var cx = STAGE_SIZE/2 - cropX;
+  var cy = STAGE_SIZE/2 - cropY;
+  cropX = STAGE_SIZE/2 - (cx / cropScale * newScale);
+  cropY = STAGE_SIZE/2 - (cy / cropScale * newScale);
+  cropScale = newScale;
+  clampPos();
+  applyTransform();
+}, {passive:false});
+
+function zatwierdzCrop() {
+  // Draw circle crop to canvas
+  var canvas = document.createElement('canvas');
+  canvas.width = 300; canvas.height = 300;
+  var ctx = canvas.getContext('2d');
+  // Clip to circle
+  ctx.beginPath();
+  ctx.arc(150, 150, 150, 0, Math.PI*2);
+  ctx.clip();
+  // Draw image scaled to canvas coords
+  var ratio = 300 / CIRCLE_SIZE;
+  var circLeft = (STAGE_SIZE - CIRCLE_SIZE) / 2;
+  var circTop  = (STAGE_SIZE - CIRCLE_SIZE) / 2;
+  var srcX = (circLeft - cropX) / cropScale;
+  var srcY = (circTop  - cropY) / cropScale;
+  var srcW = CIRCLE_SIZE / cropScale;
+  var srcH = CIRCLE_SIZE / cropScale;
+  ctx.drawImage(document.getElementById('cropImg'), srcX, srcY, srcW, srcH, 0, 0, 300, 300);
+  var result = canvas.toDataURL('image/jpeg', 0.85);
+  anulujCrop();
+  if (cropTarget === 'add') {
+    selPhoto = result;
+    var circle = document.getElementById('addPhotoCircle');
+    circle.innerHTML = '<img src="'+result+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%"><input type="file" accept="image/*" onchange="handleAddPhoto(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">';
+    document.getElementById('addPhotoClear').style.display = 'inline-block';
+  } else {
+    editPhoto = result;
+    editPhotoChanged = true;
+    var circle2 = document.getElementById('editPhotoCircle');
+    circle2.innerHTML = '<img src="'+result+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%"><input type="file" accept="image/*" onchange="handleEditPhoto(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">';
+    document.getElementById('editPhotoClear').style.display = 'inline-block';
+  }
+}
+
+function anulujCrop() {
+  document.getElementById('cropBg').classList.remove('on');
+  cropDragging = false;
+}
+
+rysujPickery();
+</script>
+</body>
+</html>
